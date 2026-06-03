@@ -2,7 +2,7 @@ module SGE
   module Parser
     module Providers
       class Google < Base
-        BASE_URL = "https://www.google.com/search".freeze
+        BASE_URL = 'https://www.google.com/search'.freeze
         AI_OVERVIEW_SELECTOR = 'div[data-attrid="kc:/search/ai_overview"]'.freeze
 
         attr_reader :ai_overview_selector
@@ -14,11 +14,10 @@ module SGE
         def search(browser, query)
           url = build_url(query)
           browser.go_to(url)
-          random_delay(min: 2.0, max: 4.0)
+          browser.human_delay(min: 3.0, max: 6.0)
+          browser.move_mouse_randomly
 
-          if detect_captcha?(browser)
-            raise CaptchaError, "Google CAPTCHA detected for query: #{query}"
-          end
+          raise CaptchaError, "Google CAPTCHA detected for query: #{query}" if detect_captcha?(browser)
 
           parse_results(browser)
         end
@@ -39,9 +38,8 @@ module SGE
         def build_url(query)
           params = URI.encode_www_form(
             q: query,
-            hl: "en",
-            gl: "us",
-            gbv: "1"
+            hl: 'en',
+            gl: 'us'
           )
           "#{BASE_URL}?#{params}"
         end
@@ -50,9 +48,9 @@ module SGE
           {
             provider: :google,
             title: browser.title,
-            results_count: browser.css("h3").length,
-            has_results: !browser.css("#search").empty?,
-            url: browser.evaluate("window.location.href"),
+            results_count: browser.css('h3').length,
+            has_results: !browser.css('#search').empty?,
+            url: browser.evaluate('window.location.href'),
             ai_overview_present: ai_overview?(browser),
             ai_overview_text: ai_overview_text(browser),
             ai_overview_selector: ai_overview_selector

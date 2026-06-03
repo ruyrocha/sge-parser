@@ -1,13 +1,13 @@
-require "ferrum"
-require "fileutils"
+require 'ferrum'
+require 'fileutils'
 
-require_relative "parser/version"
-require_relative "parser/config"
-require_relative "parser/browser"
-require_relative "parser/screenshot"
-require_relative "parser/providers"
-require_relative "parser/providers/base"
-require_relative "parser/providers/google"
+require_relative 'parser/version'
+require_relative 'parser/config'
+require_relative 'parser/browser'
+require_relative 'parser/screenshot'
+require_relative 'parser/providers'
+require_relative 'parser/providers/base'
+require_relative 'parser/providers/google'
 
 module SGE
   module Parser
@@ -23,12 +23,13 @@ module SGE
         yield(config)
       end
 
-      def search(query, provider: :google, action: :search, screenshot: true)
-        provider_instance = Providers.build(provider)
+      def search(query, provider: :google, action: :search, screenshot: true, provider_options: {}, warm_up: false)
+        provider_instance = Providers.build(provider, **provider_options)
         browser = Browser.new
 
         begin
           browser.start
+          browser.warm_up if warm_up
           results = provider_instance.search(browser, query)
 
           if screenshot
