@@ -1,6 +1,60 @@
-module Sge
+module SGE
   module Parser
     VERSION: String
-    # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+    class Error < StandardError
+    end
+
+    class CaptchaError < Error
+    end
+
+    class Config
+      attr_accessor screenshot_dir: String
+      attr_accessor browser_options: Hash[Symbol, untyped]
+      attr_accessor default_timeout: Integer
+
+      def initialize: () -> void
+    end
+
+    class Browser
+      @options: Hash[Symbol, untyped]
+      @browser: Ferrum::Browser?
+
+      def initialize: (?Hash[Symbol, untyped]) -> void
+      def start: () -> Ferrum::Browser
+      def stop: () -> void
+      def go_to: (String) -> void
+      def screenshot: (**untyped) -> void
+      def screenshot_element: (path: String, selector: String) -> void
+      def title: () -> String?
+      def css: (String) -> Array[untyped]
+      def at_css: (String) -> untyped?
+      def evaluate: (String) -> untyped
+    end
+
+    class Screenshot
+      def initialize: (?Config) -> void
+      def capture: (Browser, action: Symbol, query: String, provider: Symbol) -> String
+      def capture_element: (Browser, selector: String, action: Symbol, query: String, provider: Symbol) -> String
+      def build_path: (action: Symbol, query: String, provider: Symbol) -> String
+    end
+
+    module Providers
+      def self.build: (Symbol | String) -> Base
+
+      class Base
+        def search: (Browser, String) -> Hash[Symbol, untyped]
+      end
+
+      class Google < Base
+        @ai_overview_selector: String
+        def initialize: (?ai_overview_selector: String) -> void
+        def ai_overview?: (Browser) -> bool
+        def ai_overview_text: (Browser) -> String?
+      end
+    end
+
+    def self.configure: { (Config) -> void } -> void
+    def self.search: (String, ?provider: Symbol, ?action: Symbol, ?screenshot: bool) -> Hash[Symbol, untyped]
   end
 end
