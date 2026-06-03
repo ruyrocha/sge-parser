@@ -6,8 +6,11 @@ structured screenshot naming, and AI Overview capture support.
 
 ## Features
 
-- **Stealth browsing** — Injects anti-detection scripts via Chrome DevTools
-  Protocol before any page load.
+- **Stealth browsing** — Comprehensive anti-detection patches (WebGL, canvas,
+  chrome.runtime, permissions, window dimensions, cdc\_ cleanup) injected via
+  CDP before any page load.
+- **Human-like behavior** — Navigates to google.com, clicks search box, types
+  character-by-character with random delays.
 - **Provider pattern** — Google today, Bing tomorrow. Easy to extend.
 - **Structured screenshots** — Filenames follow
   `YYYYMMDD_HHMMSS_action_query_provider.png`.
@@ -39,16 +42,17 @@ Requires Ruby >= 3.0 and a working Chrome/Chromium installation for Ferrum.
 ```ruby
 require "sge-parser"
 
-results = SGE::Parser.search("turing machine")
+# Headless mode (default, uses headless: :new)
+results = SGE::Parser.search("turing machine", warm_up: true)
 
 puts results[:title]
-# => "turing machine - Google Search"
-
 puts results[:results_count]
-# => 12
-
 puts results[:screenshot]
-# => "screenshots/20240603_153045_search_turing-machine_google.png"
+
+if results[:ai_overview_present]
+  puts results[:ai_overview_text]
+  puts results[:ai_overview_screenshot]
+end
 ```
 
 ## Configuration
@@ -70,7 +74,8 @@ results = SGE::Parser.search(
   "coffee makers",
   provider: :google,
   action:   :search,
-  screenshot: true
+  screenshot: true,
+  warm_up: true
 )
 ```
 
@@ -92,14 +97,11 @@ Returns a hash:
 For queries that trigger Google's AI Overview (e.g. "turing machine"):
 
 ```ruby
-results = SGE::Parser.search("turing machine")
+results = SGE::Parser.search("turing machine", warm_up: true)
 
 if results[:ai_overview_present]
   puts results[:ai_overview_text]
-  # => "A Turing machine is a mathematical model of computation..."
-
   puts results[:ai_overview_screenshot]
-  # => "screenshots/20240603_153045_ai-overview_turing-machine_google.png"
 end
 ```
 
@@ -109,8 +111,9 @@ Google changes their DOM frequently. If the default selector drifts, override
 it:
 
 ```ruby
-provider = SGE::Parser::Providers::Google.new(
-  ai_overview_selector: 'div.new-google-class'
+SGE::Parser.search(
+  "turing machine",
+  provider_options: { ai_overview_selector: 'div.new-google-class' }
 )
 ```
 
@@ -127,13 +130,10 @@ YYYYMMDD_HHMMSS_action_query_provider.png
 | Query     | `turing-machine`        | Sanitized search term         |
 | Provider  | `google`                | Search engine used            |
 
-Special characters in queries are replaced with hyphens and truncated to 50
-characters.
-
 ### Headless vs Visible
 
 ```ruby
-# Headless (default, CI-friendly)
+# New headless mode (default, less detectable than old headless)
 SGE::Parser.search("ruby gems")
 
 # Visible browser — useful for debugging CAPTCHAs
@@ -142,52 +142,38 @@ SGE::Parser.configure do |config|
 end
 ```
 
+## Stealth Measures
+
+The following are patched before any navigation via
+`Page.addScriptToEvaluateOnNewDocument`:
+
+| Property                        | Patch                                             |
+| ------------------------------- | ------------------------------------------------- |
+| `navigator.webdriver`           | `undefined`                                       |
+| `window.chrome`                 | Full `runtime`, `app`, `csi`, `loadTimes` objects |
+| `navigator.plugins`             | Realistic plugin array                            |
+| `navigator.languages`           | `["en-US", "en"]`                                 |
+| `navigator.platform`            | `"MacIntel"`                                      |
+| `navigator.hardwareConcurrency` | `8`                                               |
+| `navigator.deviceMemory`        | `8`                                               |
+| WebGL vendor/renderer           | `"Intel Inc."` / `"Intel Iris OpenGL Engine"`     |
+| `window.outerWidth/Height`      | Match `innerWidth/Height`                         |
+| `screen.*`                      | Realistic color/ pixel depth, avail dimensions    |
+| `cdc_` / `wdc_` variables       | Removed from `window`                             |
+| `navigator.permissions.query`   | Spoofed notification response                     |
+
+Plus behavioral mimicry: google.com first, click search box, type chars with
+random delays, press Enter.
+
 ## Architecture
 
 ```
 lib/sge/parser/
-├── browser.rb      # Ferrum wrapper + stealth JS injection
+├── browser.rb      # Ferrum wrapper + comprehensive stealth JS
 ├── screenshot.rb   # Filename generation & directory management
 ├── providers/
 │   ├── base.rb     # Shared CAPTCHA detection & delays
-│   └── google.rb   # URL building, parsing, AI overview detection
-```
-
-### Adding a New Provider
-
-1. Create `lib/sge/parser/providers/bing.rb`:
-
-```ruby
-module SGE
-  module Parser
-    module Providers
-      class Bing < Base
-        BASE_URL = "https://www.bing.com/search".freeze
-
-        def search(browser, query)
-          browser.go_to("#{BASE_URL}?q=#{URI.encode_www_form_component(query)}")
-          random_delay
-
-          raise CaptchaError if detect_captcha?(browser)
-
-          { provider: :bing, title: browser.title }
-        end
-      end
-    end
-  end
-end
-```
-
-1. Register it in `lib/sge/parser/providers.rb`:
-
-```ruby
-def self.build(name)
-  case name.to_sym
-  when :google then Google.new
-  when :bing   then Bing.new
-  else raise ArgumentError, "Unknown provider: #{name}"
-  end
-end
+│   └── google.rb   # human_search, parsing, AI overview detection
 ```
 
 ## Testing
@@ -196,42 +182,16 @@ end
 bundle exec rspec
 ```
 
-All specs use `instance_double` — no Chrome required. The suite runs in under a
-second.
-
-### Test Structure
-
-| Spec                 | Coverage                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `parser_spec.rb`     | Integration-level API, screenshot toggling, AI overview branching, browser lifecycle |
-| `browser_spec.rb`    | Stealth injection, CDP command verification, delegation, element screenshots         |
-| `screenshot_spec.rb` | Filename generation, sanitization, truncation, element capture                       |
-| `google_spec.rb`     | URL building, result parsing, CAPTCHA detection, AI overview detection/text          |
+All specs use `instance_double` — no Chrome required.
 
 ## CAPTCHA Handling
 
-If Google serves a CAPTCHA or "unusual traffic" page,
-`SGE::Parser::CaptchaError` is raised with the query in the message. The browser
-is still properly quit via `ensure`.
+If Google serves a CAPTCHA, `SGE::Parser::CaptchaError` is raised. Common fixes:
 
-Common causes:
-
-- **Datacenter IP** — Use a residential proxy.
-- **No human delays** — The Google provider already adds 2–4s randomized delays.
-- **Fresh profile** — Visit a few normal sites first to accumulate cookies.
-
-## Stealth Script
-
-The following properties are patched before any navigation:
-
-- `navigator.webdriver` → `undefined`
-- `navigator.plugins` → realistic plugin array
-- `navigator.languages` → `["en-US", "en"]`
-- `navigator.permissions.query` → spoofed notification response
-- `window.chrome` → `{ runtime: {} }`
-
-Injected via `Page.addScriptToEvaluateOnNewDocument` so it runs before page
-scripts.
+- Use `warm_up: true` to accumulate cookies
+- Ensure persistent `user-data-dir` (default in Browser)
+- Switch to `headless: false` for debugging
+- Check screenshot to see exactly what Google served
 
 ## License
 

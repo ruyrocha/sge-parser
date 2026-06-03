@@ -7,6 +7,5 @@
 /spec/reports/
 /spec/examples.txt
 /tmp/
-.rspec_status
 /screenshots/*.png
 *.gem

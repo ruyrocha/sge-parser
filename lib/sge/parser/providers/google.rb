@@ -12,10 +12,7 @@ module SGE
         end
 
         def search(browser, query)
-          url = build_url(query)
-          browser.go_to(url)
-          browser.human_delay(min: 3.0, max: 6.0)
-          browser.move_mouse_randomly
+          browser.human_search(query)
 
           raise CaptchaError, "Google CAPTCHA detected for query: #{query}" if detect_captcha?(browser)
 
@@ -28,21 +25,10 @@ module SGE
 
         def ai_overview_text(browser)
           element = browser.at_css(ai_overview_selector)
-          return nil unless element
-
-          element.inner_text
+          element&.inner_text
         end
 
         private
-
-        def build_url(query)
-          params = URI.encode_www_form(
-            q: query,
-            hl: 'en',
-            gl: 'us'
-          )
-          "#{BASE_URL}?#{params}"
-        end
 
         def parse_results(browser)
           {

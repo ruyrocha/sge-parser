@@ -18,11 +18,13 @@ RSpec.describe SGE::Parser do
 
     before do
       allow(SGE::Parser::Browser).to receive(:new).and_return(browser)
-      allow(SGE::Parser::Providers).to receive(:build).with(:google).and_return(provider)
+      allow(SGE::Parser::Providers).to receive(:build).and_return(provider)
       allow(SGE::Parser::Screenshot).to receive(:new).and_return(screenshot_manager)
 
       allow(browser).to receive(:start)
       allow(browser).to receive(:stop)
+      allow(browser).to receive(:warm_up)
+      allow(browser).to receive(:at_css).and_return(nil)
       allow(screenshot_manager).to receive(:capture).and_return('screenshots/test.png')
       allow(screenshot_manager).to receive(:capture_element).and_return('screenshots/ai_overview.png')
     end
@@ -64,6 +66,15 @@ RSpec.describe SGE::Parser do
       described_class.search('ruby gems')
     end
 
+    it 'calls warm_up when warm_up option is true' do
+      allow(provider).to receive(:search).and_return(
+        { provider: :google, results_count: 5, ai_overview_present: false }
+      )
+      expect(browser).to receive(:warm_up)
+
+      described_class.search('ruby gems', warm_up: true)
+    end
+
     context 'when AI overview is present' do
       before do
         allow(provider).to receive(:search).and_return(
@@ -74,6 +85,7 @@ RSpec.describe SGE::Parser do
             ai_overview_selector: 'div[data-attrid="kc:/search/ai_overview"]'
           }
         )
+        allow(browser).to receive(:at_css).with('div[data-attrid="kc:/search/ai_overview"]').and_return(double) # ADD THIS
       end
 
       it 'captures an AI overview element screenshot' do
