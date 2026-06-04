@@ -13,7 +13,7 @@ RSpec.describe SGE::Parser do
 
   describe '.search' do
     let(:browser) { instance_double(SGE::Parser::Browser) }
-    let(:provider) { instance_double(SGE::Parser::Providers::Google, ai_overview_selector: 'div[data-attrid="kc:/search/ai_overview"]') }
+    let(:provider) { instance_double(SGE::Parser::Providers::Google, ai_overview_selector: 'div[data-attrid*="ai_overview"]') }
     let(:screenshot_manager) { instance_double(SGE::Parser::Screenshot) }
 
     before do
@@ -39,7 +39,7 @@ RSpec.describe SGE::Parser do
 
     it 'returns results with screenshot path when screenshot is true' do
       allow(provider).to receive(:search).and_return(
-        { provider: :google, results_count: 5, ai_overview_present: false }
+        { provider: :google, results_count: 5, ai_overview_present: false, ai_overview_selector: 'div[data-attrid*="ai_overview"]' }
       )
 
       results = described_class.search('ruby gems', screenshot: true)
@@ -49,7 +49,7 @@ RSpec.describe SGE::Parser do
 
     it 'does not attach screenshot when disabled' do
       allow(provider).to receive(:search).and_return(
-        { provider: :google, results_count: 5, ai_overview_present: false }
+        { provider: :google, results_count: 5, ai_overview_present: false, ai_overview_selector: 'div[data-attrid*="ai_overview"]' }
       )
       expect(screenshot_manager).not_to receive(:capture)
 
@@ -59,7 +59,7 @@ RSpec.describe SGE::Parser do
 
     it 'ensures the browser is stopped' do
       allow(provider).to receive(:search).and_return(
-        { provider: :google, results_count: 5, ai_overview_present: false }
+        { provider: :google, results_count: 5, ai_overview_present: false, ai_overview_selector: 'div[data-attrid*="ai_overview"]' }
       )
       expect(browser).to receive(:stop)
 
@@ -68,7 +68,7 @@ RSpec.describe SGE::Parser do
 
     it 'calls warm_up when warm_up option is true' do
       allow(provider).to receive(:search).and_return(
-        { provider: :google, results_count: 5, ai_overview_present: false }
+        { provider: :google, results_count: 5, ai_overview_present: false, ai_overview_selector: 'div[data-attrid*="ai_overview"]' }
       )
       expect(browser).to receive(:warm_up)
 
@@ -82,16 +82,16 @@ RSpec.describe SGE::Parser do
             provider: :google,
             results_count: 5,
             ai_overview_present: true,
-            ai_overview_selector: 'div[data-attrid="kc:/search/ai_overview"]'
+            ai_overview_selector: 'div[data-attrid*="ai_overview"]'
           }
         )
-        allow(browser).to receive(:at_css).with('div[data-attrid="kc:/search/ai_overview"]').and_return(double) # ADD THIS
+        allow(browser).to receive(:at_css).with('div[data-attrid*="ai_overview"]').and_return(double)
       end
 
       it 'captures an AI overview element screenshot' do
         expect(screenshot_manager).to receive(:capture_element).with(
           browser,
-          selector: 'div[data-attrid="kc:/search/ai_overview"]',
+          selector: 'div[data-attrid*="ai_overview"]',
           action: :ai_overview,
           query: 'turing machine',
           provider: :google
@@ -110,7 +110,7 @@ RSpec.describe SGE::Parser do
             provider: :google,
             results_count: 5,
             ai_overview_present: false,
-            ai_overview_selector: 'div[data-attrid="kc:/search/ai_overview"]'
+            ai_overview_selector: 'div[data-attrid*="ai_overview"]'
           }
         )
       end

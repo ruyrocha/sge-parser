@@ -39,11 +39,13 @@ module SGE
           end
 
           if results[:ai_overview_present] && screenshot
-            # Only capture element screenshot if selector exists in DOM
-            if browser.at_css(results[:ai_overview_selector])
+            ai_selector = results[:ai_overview_selector]
+
+            # Try element screenshot with the resolved selector
+            if ai_selector && browser.at_css(ai_selector)
               ai_path = screenshot_manager.capture_element(
                 browser,
-                selector: results[:ai_overview_selector],
+                selector: ai_selector,
                 action: :ai_overview,
                 query: query,
                 provider: provider
